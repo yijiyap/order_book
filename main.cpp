@@ -2,14 +2,16 @@
 #include <algorithm>
 #include <vector>
 
-class price_level // at each price level, how many orders are there
+// at each price level, how many orders are there
+class price_level 
 {
 public:
     float price;
     double size;
 };
 
-class book // limit order book
+// limit order book
+class book 
 {
 private:
     std::vector<price_level> bids;
@@ -51,6 +53,13 @@ public:
     {
         if (is_bid)
         {
+            /*  
+                - `std::remove_if` rearranges the elements in the range `[bid.begin(), bids.end())` such that the elements satisfying the condition are moved to the end of the range.
+                - a lambda function is used to determine the condition for the item to be moved.
+                - `std::remove_if` returns an iterator pointing to the new logical end of the sequence, where the elements that do not satisfy the condition now reside.
+                - The erase function is then called to remove elements from the container. It takes two arguments: the start iterator of the range to remove (returned by std::remove_if), and the real end iterator of the container.
+                - So, the second bids.end() is simply providing the real end iterator of the bids container.
+            */
             bids.erase(std::remove_if(bids.begin(), bids.end(), [&](auto const& l)
             {
                 return l.price == pl.price;
@@ -83,10 +92,79 @@ public:
                 return l.price == pl.price;
             }); // find price level in asks
         }
-        if (it != bids.end() || it != asks.end())
+        if (it != bids.end())
         {
             it->price = pl.price; // update price
             it->size = pl.size; // update size
         }
     }
 };
+
+class aggregated_book
+{
+private:
+    std::vector<book> all_books;
+
+public:
+    void AddPriceLevel(int venue_id, price_level& pl, bool is_bid)
+    {
+        all_books[venue_id].AddPriceLevel(pl, is_bid);
+    }
+    void DeletePriceLevel(int venue_id, price_level& pl, bool is_bid)
+    {
+        all_books[venue_id].DeletePriceLevel(pl, is_bid);
+    }
+    void UpdatePriceLevel(int venue_id, price_level& pl, bool is_bid)
+    {
+        all_books[venue_id].UpdatePriceLevel(pl, is_bid);
+    }
+
+    double get_best_bid()
+    {
+        double best_bid;
+        for (book& b : all_books)
+        {
+            if (best_bid == 0)
+                best_bid = b.get_best_bid();
+            else
+                best_bid = std::max(best_bid, b.get_best_bid());
+        }
+        return best_bid;
+    }
+
+    double get_best_ask()
+    {
+        double best_ask;
+        for (book& b: all_books)
+        {
+            if (best_ask == 0)
+                best_ask = b.get_best_ask();
+            else
+                best_ask = std::min(best_ask, b.get_best_ask());
+        }
+        return best_ask;
+    }
+};
+
+int main()
+{
+    price_level pl;
+    pl.price = 100;
+    pl.size = 1000;
+
+    book b;
+    b.AddPriceLevel(pl, true);
+    b.AddPriceLevel(pl, false);
+    b.DeletePriceLevel(pl, true);
+    b.UpdatePriceLevel(pl, true);
+
+    aggregated_book ab;
+    ab.AddPriceLevel(0, pl, true);
+    ab.AddPriceLevel(0, pl, false);
+    ab.DeletePriceLevel(0, pl, true);
+    ab.UpdatePriceLevel(0, pl, true);
+    ab.get_best_bid();
+    ab.get_best_ask();
+
+    return 0;
+}
